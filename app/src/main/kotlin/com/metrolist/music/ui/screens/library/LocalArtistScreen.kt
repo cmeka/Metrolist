@@ -74,6 +74,7 @@ import com.metrolist.music.ui.component.IconButton
 import com.metrolist.music.ui.component.LocalMenuState
 import com.metrolist.music.ui.component.SongListItem
 import com.metrolist.music.ui.component.SortHeader
+import com.metrolist.music.ui.menu.AlbumMenu
 import com.metrolist.music.ui.menu.SongMenu
 import com.metrolist.music.utils.rememberEnumPreference
 import com.metrolist.music.utils.rememberPreference
@@ -254,10 +255,21 @@ fun LocalArtistScreen(
                                 album = album,
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clickable {
-                                        Timber.d("LocalArtistScreen: [LIST] Album clicked - id=${album.id}, title=${album.album.title}")
-                                        navController.navigate("local_album/${album.id}")
-                                    }
+                                    .combinedClickable(
+                                        onClick = {
+                                            Timber.d("LocalArtistScreen: [LIST] Album clicked - id=${album.id}, title=${album.album.title}")
+                                            navController.navigate("local_album/${album.id}")
+                                        },
+                                        onLongClick = {
+                                            menuState.show {
+                                                AlbumMenu(
+                                                    originalAlbum = album,
+                                                    navController = navController,
+                                                    onDismiss = menuState::dismiss
+                                                )
+                                            }
+                                        }
+                                    )
                                     .animateItem()
                             )
                         }
@@ -484,10 +496,21 @@ fun LocalArtistScreen(
                                 coroutineScope = coroutineScope,
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clickable {
-                                        Timber.d("LocalArtistScreen: [GRID] Album clicked - id=${album.id}, title=${album.album.title}")
-                                        navController.navigate("local_album/${album.id}")
-                                    }
+                                    .combinedClickable(
+                                        onClick = {
+                                            Timber.d("LocalArtistScreen: [GRID] Album clicked - id=${album.id}, title=${album.album.title}")
+                                            navController.navigate("local_album/${album.id}")
+                                        },
+                                        onLongClick = {
+                                            menuState.show {
+                                                AlbumMenu(
+                                                    originalAlbum = album,
+                                                    navController = navController,
+                                                    onDismiss = menuState::dismiss
+                                                )
+                                            }
+                                        }
+                                    )
                                     .animateItem()
                             )
                         }
