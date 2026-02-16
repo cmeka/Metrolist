@@ -155,11 +155,13 @@
 -keepclassmembers class io.ktor.** { *; }
 -dontwarn io.ktor.**
 
-## CoverArt Native JNI
+## CoverArt Native JNI and metadata embedding
 -keep class com.metrolist.music.utils.CoverArtNative { *; }
 -keepclassmembers class com.metrolist.music.utils.CoverArtNative {
     native <methods>;
 }
+-keep class com.metrolist.music.utils.CoverArtEmbedder { *; }
+-keep class com.metrolist.music.utils.DownloadExportHelper { *; }
 
 ## Shazam Models
 -keep class com.metrolist.shazamkit.models.** { *; }
