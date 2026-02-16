@@ -713,4 +713,14 @@
     <string name="discord_activity_name_description">Custom name for the activity (leave empty for default)</string>
     <string name="discord_advanced_mode">Advanced mode</string>
     <string name="discord_advanced_mode_description">Show additional customization options for Rich Presence</string>
+
+    <!-- Local Music -->
+    <string name="local_music">Local Music</string>
+    <string name="filter_local">Local</string>
+    <string name="local_music_permission_title">Access local music</string>
+    <string name="local_music_permission_desc">Metrolist needs permission to read audio files from your device to display your local music library.</string>
+    <string name="local_music_permission_needed">Permission needed to access local music files</string>
+    <string name="no_local_artists">No local music found</string>
+    <string name="grant_permission">Grant permission</string>
+    <string name="syncing_local_music">Scanning local music library…</string>
 </resources>

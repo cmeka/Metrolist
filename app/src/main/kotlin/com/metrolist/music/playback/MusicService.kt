@@ -59,6 +59,7 @@ import androidx.media3.exoplayer.audio.DefaultAudioSink
 import androidx.media3.exoplayer.audio.SilenceSkippingAudioProcessor
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.source.ShuffleOrder.DefaultShuffleOrder
+import androidx.media3.extractor.DefaultExtractorsFactory
 import androidx.media3.extractor.ExtractorsFactory
 import androidx.media3.extractor.mkv.MatroskaExtractor
 import androidx.media3.extractor.mp4.FragmentedMp4Extractor
@@ -2627,19 +2628,39 @@ class MusicService :
             // Check if we need to bypass cache for quality change
             val shouldBypassCache = bypassCacheForQualityChange.contains(mediaId)
 
+            // Check for local file or downloaded file URI first
+            Timber.tag("CacheResolver").d("Resolving mediaId=$mediaId, position=${dataSpec.position}, uri=${dataSpec.uri}")
             if (!shouldBypassCache) {
-                if (downloadCache.isCached(
-                        mediaId,
-                        dataSpec.position,
-                        if (dataSpec.length >= 0) dataSpec.length else 1
-                    ) ||
-                    playerCache.isCached(mediaId, dataSpec.position, CHUNK_LENGTH)
-                ) {
+                val song = runBlocking(Dispatchers.IO) {
+                    database.song(mediaId).first()
+                }
+                Timber.tag("CacheResolver").d("Database lookup for $mediaId: song=${song?.song?.title}, isLocal=${song?.song?.isLocal}, downloadUri=${song?.song?.downloadUri}")
+
+                // Use local/downloaded file directly if available
+                if (song?.song?.downloadUri != null && dataSpec.position == 0L) {
+                    val localUri = song.song.downloadUri.toUri()
+                    Timber.tag("CacheResolver").d("Using local file for $mediaId: $localUri (isLocal=${song.song.isLocal})")
+                    scope.launch(Dispatchers.IO) { recoverSong(mediaId) }
+                    return@Factory dataSpec.withUri(localUri)
+                }
+
+                // Check download cache
+                if (downloadCache.isCached(mediaId, dataSpec.position, CHUNK_LENGTH)) {
+                    Timber.tag("CacheResolver").d("Using download cache for $mediaId at pos=${dataSpec.position}")
                     scope.launch(Dispatchers.IO) { recoverSong(mediaId) }
                     return@Factory dataSpec
                 }
 
+                // Check player cache
+                if (playerCache.isCached(mediaId, dataSpec.position, CHUNK_LENGTH)) {
+                    Timber.tag("CacheResolver").d("Using player cache for $mediaId at pos=${dataSpec.position}")
+                    scope.launch(Dispatchers.IO) { recoverSong(mediaId) }
+                    return@Factory dataSpec
+                }
+
+                // Check URL cache
                 songUrlCache[mediaId]?.takeIf { it.second > System.currentTimeMillis() }?.let {
+                    Timber.tag("CacheResolver").d("Using URL cache for $mediaId")
                     scope.launch(Dispatchers.IO) { recoverSong(mediaId) }
                     return@Factory dataSpec.withUri(it.first.toUri())
                 }
@@ -2730,9 +2751,10 @@ class MusicService :
     private fun createMediaSourceFactory() =
         DefaultMediaSourceFactory(
             createDataSourceFactory(),
-            ExtractorsFactory {
-                arrayOf(MatroskaExtractor(), FragmentedMp4Extractor())
-            },
+            // Use DefaultExtractorsFactory to support all audio formats including:
+            // - Local files: MP3, FLAC, OGG, AAC, WAV, etc.
+            // - YouTube streams: M4A (FragmentedMp4), WebM/OPUS (Matroska)
+            DefaultExtractorsFactory(),
         )
 
     private fun createRenderersFactory(

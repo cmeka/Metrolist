@@ -61,6 +61,7 @@ import com.metrolist.music.constants.MixSortTypeKey
 import com.metrolist.music.constants.ShowCachedPlaylistKey
 import com.metrolist.music.constants.ShowDownloadedPlaylistKey
 import com.metrolist.music.constants.ShowLikedPlaylistKey
+import com.metrolist.music.constants.ShowLocalPlaylistKey
 import com.metrolist.music.constants.ShowTopPlaylistKey
 import com.metrolist.music.constants.ShowUploadedPlaylistKey
 import com.metrolist.music.constants.YtmSyncKey
@@ -164,11 +165,22 @@ fun LibraryMixScreen(
             songThumbnails = emptyList(),
         )
 
+    val localPlaylist =
+        Playlist(
+            playlist = PlaylistEntity(
+                id = UUID.randomUUID().toString(),
+                name = stringResource(R.string.filter_local)
+            ),
+            songCount = 0,
+            songThumbnails = emptyList(),
+        )
+
     val (showLiked) = rememberPreference(ShowLikedPlaylistKey, true)
     val (showDownloaded) = rememberPreference(ShowDownloadedPlaylistKey, true)
     val (showTop) = rememberPreference(ShowTopPlaylistKey, true)
     val (showCached) = rememberPreference(ShowCachedPlaylistKey, true)
     val (showUploaded) = rememberPreference(ShowUploadedPlaylistKey, true)
+    val (showLocal) = rememberPreference(ShowLocalPlaylistKey, true)
 
     val albums = viewModel.albums.collectAsState()
     val artist = viewModel.artists.collectAsState()
@@ -400,6 +412,25 @@ fun LibraryMixScreen(
                                         .fillMaxWidth()
                                         .clickable {
                                             navController.navigate("auto_playlist/uploaded")
+                                        }
+                                        .animateItem(),
+                            )
+                        }
+                    }
+
+                    if (showLocal) {
+                        item(
+                            key = "localPlaylist",
+                            contentType = { CONTENT_TYPE_PLAYLIST },
+                        ) {
+                            PlaylistListItem(
+                                playlist = localPlaylist,
+                                autoPlaylist = true,
+                                modifier =
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            navController.navigate("local_music")
                                         }
                                         .animateItem(),
                             )
@@ -675,6 +706,26 @@ fun LibraryMixScreen(
                                         .fillMaxWidth()
                                         .clickable {
                                             navController.navigate("auto_playlist/uploaded")
+                                        }
+                                        .animateItem(),
+                            )
+                        }
+                    }
+
+                    if (showLocal) {
+                        item(
+                            key = "localPlaylist",
+                            contentType = { CONTENT_TYPE_PLAYLIST },
+                        ) {
+                            PlaylistGridItem(
+                                playlist = localPlaylist,
+                                fillMaxWidth = true,
+                                autoPlaylist = true,
+                                modifier =
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            navController.navigate("local_music")
                                         }
                                         .animateItem(),
                             )

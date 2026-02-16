@@ -65,6 +65,11 @@ fun LibraryScreen(navController: NavController) {
             LibraryFilter.ARTISTS -> LibraryArtistsScreen(
                 navController,
                 { filterType = LibraryFilter.LIBRARY })
+
+            LibraryFilter.LOCAL -> {
+                // LOCAL is accessed via the Local box in LibraryMixScreen, not via chip
+                // This case shouldn't be reached in normal flow
+            }
         }
     }
 }

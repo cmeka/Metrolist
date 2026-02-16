@@ -14,33 +14,43 @@ import com.metrolist.music.db.entities.Song
 import com.metrolist.music.models.MediaMetadata
 import com.metrolist.music.models.toMediaMetadata
 import com.metrolist.music.ui.utils.resize
+import timber.log.Timber
 
 val MediaItem.metadata: MediaMetadata?
     get() = localConfiguration?.tag as? MediaMetadata
 
-fun Song.toMediaItem() = MediaItem.Builder()
-    .setMediaId(song.id)
-    .setUri(song.id)
-    .setCustomCacheKey(song.id)
-    .setTag(toMediaMetadata())
-    .setMediaMetadata(
-        androidx.media3.common.MediaMetadata.Builder()
-            .setTitle(song.title)
-            .setSubtitle(artists.joinToString { it.name })
-            .setArtist(artists.joinToString { it.name })
-            .setArtworkUri(song.thumbnailUrl?.toUri())
-            .setAlbumTitle(song.albumName)
-            .setAlbumArtist(artists.firstOrNull()?.name)
-            .setDisplayTitle(song.title)
-            .setMediaType(MEDIA_TYPE_MUSIC)
-            .setIsBrowsable(false)
-            .setIsPlayable(true)
-            .setExtras(Bundle().apply {
-                putString("artwork_uri", song.thumbnailUrl)
-            })
-            .build()
-    )
-    .build()
+fun Song.toMediaItem(): MediaItem {
+    val uri = if (song.isLocal && !song.downloadUri.isNullOrEmpty()) {
+        song.downloadUri
+    } else {
+        song.id
+    }
+    Timber.d("MediaItemExt: Song.toMediaItem() - id=${song.id}, isLocal=${song.isLocal}, downloadUri=${song.downloadUri}, resolvedUri=$uri")
+    return MediaItem.Builder()
+        .setMediaId(song.id)
+        .setUri(uri)
+        .setCustomCacheKey(song.id)
+        .setTag(toMediaMetadata())
+        .setMediaMetadata(
+            androidx.media3.common.MediaMetadata.Builder()
+                .setTitle(song.title)
+                .setSubtitle(artists.joinToString { it.name })
+                .setArtist(artists.joinToString { it.name })
+                .setArtworkUri(song.thumbnailUrl?.toUri())
+                .setAlbumTitle(song.albumName)
+                .setAlbumArtist(artists.firstOrNull()?.name)
+                .setDisplayTitle(song.title)
+                .setMediaType(MEDIA_TYPE_MUSIC)
+                .setIsBrowsable(false)
+                .setIsPlayable(true)
+                .setExtras(Bundle().apply {
+                    putString("artwork_uri", song.thumbnailUrl)
+                    putBoolean("is_local", song.isLocal)
+                })
+                .build()
+        )
+        .build()
+}
 
 fun SongItem.toMediaItem() = MediaItem.Builder()
     .setMediaId(id)

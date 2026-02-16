@@ -31,6 +31,9 @@ import com.metrolist.music.ui.screens.artist.ArtistScreen
 import com.metrolist.music.ui.screens.artist.ArtistSongsScreen
 import com.metrolist.music.ui.screens.equalizer.EqScreen
 import com.metrolist.music.ui.screens.library.LibraryScreen
+import com.metrolist.music.ui.screens.library.LocalAlbumScreen
+import com.metrolist.music.ui.screens.library.LocalArtistScreen
+import com.metrolist.music.ui.screens.library.LocalMusicScreen
 import com.metrolist.music.ui.screens.playlist.AutoPlaylistScreen
 import com.metrolist.music.ui.screens.playlist.CachePlaylistScreen
 import com.metrolist.music.ui.screens.playlist.LocalPlaylistScreen
@@ -205,6 +208,34 @@ fun NavGraphBuilder.navigationBuilder(
         ),
     ) {
         ArtistSongsScreen(navController, scrollBehavior)
+    }
+
+    composable(
+        route = "local_music",
+    ) {
+        LocalMusicScreen(navController, scrollBehavior)
+    }
+
+    composable(
+        route = "local_artist/{artistId}",
+        arguments = listOf(
+            navArgument("artistId") {
+                type = NavType.StringType
+            },
+        ),
+    ) {
+        LocalArtistScreen(navController, scrollBehavior)
+    }
+
+    composable(
+        route = "local_album/{albumId}",
+        arguments = listOf(
+            navArgument("albumId") {
+                type = NavType.StringType
+            },
+        ),
+    ) {
+        LocalAlbumScreen(navController, scrollBehavior)
     }
 
     composable(
