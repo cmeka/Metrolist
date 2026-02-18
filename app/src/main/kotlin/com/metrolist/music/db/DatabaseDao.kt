@@ -1704,6 +1704,34 @@ interface DatabaseDao {
     """)
     fun searchLocalAlbums(query: String, limit: Int = Int.MAX_VALUE): Flow<List<Album>>
 
+    // Folder browsing queries
+    @Query("""
+        SELECT DISTINCT localPath
+        FROM song
+        WHERE isLocal = 1 AND localPath IS NOT NULL
+        ORDER BY localPath COLLATE NOCASE ASC
+    """)
+    fun localSongPaths(): Flow<List<String>>
+
+    @Transaction
+    @Query("""
+        SELECT * FROM song
+        WHERE isLocal = 1
+        AND localPath LIKE :folderPath || '/%'
+        AND localPath NOT LIKE :folderPath || '/%/%'
+        ORDER BY title COLLATE NOCASE ASC
+    """)
+    fun localSongsInFolder(folderPath: String): Flow<List<Song>>
+
+    @Transaction
+    @Query("""
+        SELECT * FROM song
+        WHERE isLocal = 1
+        AND localPath LIKE :folderPath || '/%'
+        ORDER BY localPath COLLATE NOCASE ASC, title COLLATE NOCASE ASC
+    """)
+    fun localSongsInFolderRecursive(folderPath: String): Flow<List<Song>>
+
     @RawQuery
     fun raw(supportSQLiteQuery: SupportSQLiteQuery): Int
 

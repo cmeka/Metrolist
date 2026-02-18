@@ -34,6 +34,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -48,6 +49,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -96,6 +98,7 @@ import com.metrolist.music.ui.component.SongListItem
 import com.metrolist.music.ui.component.SortHeader
 import com.metrolist.music.ui.component.AlbumListItem
 import com.metrolist.music.ui.component.AlbumGridItem
+import com.metrolist.music.ui.component.ChipsRow
 import com.metrolist.music.ui.menu.AlbumMenu
 import com.metrolist.music.ui.menu.SongMenu
 import com.metrolist.music.utils.LocalMusicRepository
@@ -135,6 +138,10 @@ fun LocalMusicScreen(
     val localArtists by viewModel.localArtists.collectAsState()
     val allLocalAlbums by viewModel.allLocalAlbums.collectAsState()
     val allLocalSongs by viewModel.allLocalSongs.collectAsState()
+    val rootFolders by viewModel.rootFolders.collectAsState()
+
+    // Tab state: 0=Artists, 1=Folders
+    var selectedTab by rememberSaveable { mutableStateOf(0) }
 
     Timber.d("LocalMusicScreen: COMPOSE - hasPermission=$hasPermission, syncStatus=$syncStatus, syncProgress=$syncProgress, artistCount=${localArtists.size}")
 
@@ -258,6 +265,17 @@ fun LocalMusicScreen(
                         .padding(horizontal = 16.dp, vertical = 8.dp),
                 )
             }
+
+            // Tab chips for Artists/Folders
+            ChipsRow(
+                chips = listOf(
+                    0 to stringResource(R.string.artists),
+                    1 to stringResource(R.string.folders)
+                ),
+                currentValue = selectedTab,
+                onValueUpdate = { selectedTab = it },
+                modifier = Modifier.padding(vertical = 8.dp)
+            )
 
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -545,37 +563,68 @@ fun LocalMusicScreen(
                                     }
                                 }
                             } else {
-                                // Normal artist list mode
-                                if (filteredArtists.isEmpty() && syncStatus !is LocalSyncStatus.Syncing) {
-                                    item(key = "empty_placeholder") {
-                                        EmptyPlaceholder(
-                                            icon = R.drawable.artist,
-                                            text = stringResource(R.string.no_local_artists),
-                                        )
-                                    }
-                                }
+                                // Normal mode - show artists or folders based on selected tab
+                                when (selectedTab) {
+                                    0 -> {
+                                        // Artists tab
+                                        if (filteredArtists.isEmpty() && syncStatus !is LocalSyncStatus.Syncing) {
+                                            item(key = "empty_placeholder") {
+                                                EmptyPlaceholder(
+                                                    icon = R.drawable.artist,
+                                                    text = stringResource(R.string.no_local_artists),
+                                                )
+                                            }
+                                        }
 
-                                items(
-                                    items = filteredArtists,
-                                    key = { it.id },
-                                    contentType = { CONTENT_TYPE_ARTIST },
-                                ) { artist ->
-                                    ArtistListItem(
-                                        artist = artist,
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .combinedClickable(
-                                                onClick = {
-                                                    Timber.d("LocalMusicScreen: Artist clicked - id=${artist.id}, name=${artist.artist.name}")
-                                                    navController.navigate("local_artist/${artist.id}")
-                                                },
-                                                onLongClick = {
-                                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                                    Timber.d("LocalMusicScreen: Artist long-pressed - id=${artist.id}")
-                                                },
+                                        items(
+                                            items = filteredArtists,
+                                            key = { it.id },
+                                            contentType = { CONTENT_TYPE_ARTIST },
+                                        ) { artist ->
+                                            ArtistListItem(
+                                                artist = artist,
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .combinedClickable(
+                                                        onClick = {
+                                                            Timber.d("LocalMusicScreen: Artist clicked - id=${artist.id}, name=${artist.artist.name}")
+                                                            navController.navigate("local_artist/${artist.id}")
+                                                        },
+                                                        onLongClick = {
+                                                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                            Timber.d("LocalMusicScreen: Artist long-pressed - id=${artist.id}")
+                                                        },
+                                                    )
+                                                    .animateItem()
                                             )
-                                            .animateItem()
-                                    )
+                                        }
+                                    }
+                                    1 -> {
+                                        // Folders tab
+                                        if (rootFolders.isEmpty() && syncStatus !is LocalSyncStatus.Syncing) {
+                                            item(key = "empty_folders") {
+                                                EmptyPlaceholder(
+                                                    icon = R.drawable.library_music,
+                                                    text = stringResource(R.string.no_local_folders),
+                                                )
+                                            }
+                                        }
+
+                                        items(
+                                            items = rootFolders,
+                                            key = { "folder_${it.first}" },
+                                        ) { (folderPath, songCount) ->
+                                            FolderListItem(
+                                                folderPath = folderPath,
+                                                songCount = songCount,
+                                                onClick = {
+                                                    val encodedPath = java.net.URLEncoder.encode(folderPath, "UTF-8")
+                                                    navController.navigate("local_folder/$encodedPath")
+                                                },
+                                                modifier = Modifier.animateItem()
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -583,9 +632,7 @@ fun LocalMusicScreen(
                     LibraryViewType.GRID ->
                         LazyVerticalGrid(
                             state = lazyGridState,
-                            columns = GridCells.Adaptive(
-                                minSize = GridThumbnailHeight + if (gridItemSize == GridItemSize.BIG) 24.dp else (-24).dp,
-                            ),
+                            columns = GridCells.Fixed(3),
                             contentPadding = PaddingValues(bottom = bottomPadding),
                         ) {
                             item(
@@ -596,37 +643,69 @@ fun LocalMusicScreen(
                                 headerContent()
                             }
 
-                            if (filteredArtists.isEmpty() && syncStatus !is LocalSyncStatus.Syncing) {
-                                item(span = { GridItemSpan(maxLineSpan) }) {
-                                    EmptyPlaceholder(
-                                        icon = R.drawable.artist,
-                                        text = stringResource(R.string.no_local_artists),
-                                    )
-                                }
-                            }
+                            when (selectedTab) {
+                                0 -> {
+                                    // Artists tab
+                                    if (filteredArtists.isEmpty() && syncStatus !is LocalSyncStatus.Syncing) {
+                                        item(span = { GridItemSpan(maxLineSpan) }) {
+                                            EmptyPlaceholder(
+                                                icon = R.drawable.artist,
+                                                text = stringResource(R.string.no_local_artists),
+                                            )
+                                        }
+                                    }
 
-                            items(
-                                items = filteredArtists,
-                                key = { it.id },
-                                contentType = { CONTENT_TYPE_ARTIST },
-                            ) { artist ->
-                                ArtistGridItem(
-                                    artist = artist,
-                                    fillMaxWidth = true,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .combinedClickable(
-                                            onClick = {
-                                                Timber.d("LocalMusicScreen: Artist grid item clicked - id=${artist.id}, name=${artist.artist.name}")
-                                                navController.navigate("local_artist/${artist.id}")
-                                            },
-                                            onLongClick = {
-                                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                                Timber.d("LocalMusicScreen: Artist long-pressed - id=${artist.id}")
-                                            },
+                                    items(
+                                        items = filteredArtists,
+                                        key = { it.id },
+                                        contentType = { CONTENT_TYPE_ARTIST },
+                                    ) { artist ->
+                                        ArtistGridItem(
+                                            artist = artist,
+                                            fillMaxWidth = true,
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .combinedClickable(
+                                                    onClick = {
+                                                        Timber.d("LocalMusicScreen: Artist grid item clicked - id=${artist.id}, name=${artist.artist.name}")
+                                                        navController.navigate("local_artist/${artist.id}")
+                                                    },
+                                                    onLongClick = {
+                                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                        Timber.d("LocalMusicScreen: Artist long-pressed - id=${artist.id}")
+                                                    },
+                                                )
+                                                .animateItem()
                                         )
-                                        .animateItem()
-                                )
+                                    }
+                                }
+                                1 -> {
+                                    // Folders tab - use list layout in grid for better folder display
+                                    if (rootFolders.isEmpty() && syncStatus !is LocalSyncStatus.Syncing) {
+                                        item(span = { GridItemSpan(maxLineSpan) }) {
+                                            EmptyPlaceholder(
+                                                icon = R.drawable.library_music,
+                                                text = stringResource(R.string.no_local_folders),
+                                            )
+                                        }
+                                    }
+
+                                    items(
+                                        items = rootFolders,
+                                        key = { "folder_${it.first}" },
+                                        span = { GridItemSpan(maxLineSpan) },
+                                    ) { (folderPath, songCount) ->
+                                        FolderListItem(
+                                            folderPath = folderPath,
+                                            songCount = songCount,
+                                            onClick = {
+                                                val encodedPath = java.net.URLEncoder.encode(folderPath, "UTF-8")
+                                                navController.navigate("local_folder/$encodedPath")
+                                            },
+                                            modifier = Modifier.animateItem()
+                                        )
+                                    }
+                                }
                             }
                         }
                 }
@@ -648,5 +727,26 @@ fun LocalMusicScreen(
             }
         },
         scrollBehavior = scrollBehavior,
+    )
+}
+
+@Composable
+fun FolderListItem(
+    folderPath: String,
+    songCount: Int,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    ListItem(
+        headlineContent = { Text(folderPath.substringAfterLast('/')) },
+        supportingContent = { Text(pluralStringResource(R.plurals.n_song, songCount, songCount)) },
+        leadingContent = {
+            Icon(
+                painter = painterResource(R.drawable.library_music),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        },
+        modifier = modifier.clickable(onClick = onClick)
     )
 }

@@ -94,9 +94,11 @@ class LocalMusicRepository @Inject constructor(
                 MediaStore.Audio.Media.DURATION,
                 MediaStore.Audio.Media.TRACK,
                 MediaStore.Audio.Media.YEAR,
+                MediaStore.Audio.Media.DATA,  // Full file path for folder browsing
             )
 
-            val selection = "${MediaStore.Audio.Media.IS_MUSIC} != 0"
+            // Include all audio files (m4a, webm, mp3, flac, etc.)
+            val selection = "(${MediaStore.Audio.Media.IS_MUSIC} != 0 OR ${MediaStore.Audio.Media.MIME_TYPE} LIKE 'audio/%')"
             val sortOrder = "${MediaStore.Audio.Media.TITLE} ASC"
 
             Timber.d("LocalMusic: syncLocalMusic() - Querying MediaStore.Audio.Media.EXTERNAL_CONTENT_URI")
@@ -119,6 +121,7 @@ class LocalMusicRepository @Inject constructor(
                 val durationCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
                 val trackCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TRACK)
                 val yearCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.YEAR)
+                val dataCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA)
 
                 val totalCount = cursor.count
                 var processedCount = 0
@@ -151,6 +154,8 @@ class LocalMusicRepository @Inject constructor(
                         val duration = cursor.getInt(durationCol) / 1000
                         val trackNumber = cursor.getInt(trackCol)
                         val year = cursor.getInt(yearCol).takeIf { it > 0 }
+                        val filePath = cursor.getString(dataCol)
+                        val folderPath = filePath?.substringBeforeLast('/')
 
                         val songId = "LOCAL_$mediaStoreId"
                         val localArtistId = artistCache.getOrPut(artistName.lowercase()) {
@@ -214,6 +219,7 @@ class LocalMusicRepository @Inject constructor(
                                 year = year,
                                 isLocal = true,
                                 downloadUri = contentUri,
+                                localPath = filePath,
                                 inLibrary = LocalDateTime.now()
                             )
                         )

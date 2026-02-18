@@ -46,6 +46,8 @@ data class SongEntity(
     val isLocal: Boolean = false,
     @ColumnInfo(name = "downloadUri", defaultValue = "NULL")
     val downloadUri: String? = null,
+    @ColumnInfo(name = "localPath", defaultValue = "NULL")
+    val localPath: String? = null,
     val libraryAddToken: String? = null,
     val libraryRemoveToken: String? = null,
     @ColumnInfo(defaultValue = "0")

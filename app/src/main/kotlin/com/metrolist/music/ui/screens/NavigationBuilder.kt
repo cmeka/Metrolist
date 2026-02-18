@@ -33,6 +33,7 @@ import com.metrolist.music.ui.screens.equalizer.EqScreen
 import com.metrolist.music.ui.screens.library.LibraryScreen
 import com.metrolist.music.ui.screens.library.LocalAlbumScreen
 import com.metrolist.music.ui.screens.library.LocalArtistScreen
+import com.metrolist.music.ui.screens.library.LocalFolderScreen
 import com.metrolist.music.ui.screens.library.LocalMusicScreen
 import com.metrolist.music.ui.screens.playlist.AutoPlaylistScreen
 import com.metrolist.music.ui.screens.playlist.CachePlaylistScreen
@@ -236,6 +237,23 @@ fun NavGraphBuilder.navigationBuilder(
         ),
     ) {
         LocalAlbumScreen(navController, scrollBehavior)
+    }
+
+    composable(
+        route = "local_folder/{folderPath}",
+        arguments = listOf(
+            navArgument("folderPath") {
+                type = NavType.StringType
+            },
+        ),
+    ) {
+        LocalFolderScreen(
+            navController = navController,
+            scrollBehavior = scrollBehavior,
+            folderPath = it.arguments?.getString("folderPath")?.let { path ->
+                java.net.URLDecoder.decode(path, "UTF-8")
+            } ?: ""
+        )
     }
 
     composable(

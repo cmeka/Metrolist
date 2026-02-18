@@ -140,7 +140,7 @@ class MusicDatabase(
         AutoMigration(from = 29, to = 30, spec = Migration29To30::class),
         AutoMigration(from = 30, to = 31),
         AutoMigration(from = 31, to = 32),
-        AutoMigration(from = 32, to = 33),  // Add downloadUri column for local music
+        AutoMigration(from = 32, to = 33),  // Add downloadUri and localPath columns for local music
     ],
 )
 @TypeConverters(Converters::class)
