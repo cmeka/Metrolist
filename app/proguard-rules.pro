@@ -13,28 +13,6 @@
 # Since Metrolist is fully open-source, obfuscation provides no meaningful security benefit.
 -dontobfuscate
 
-# WEB_REMIX Streaming - WebView JavaScript interfaces
--keepclassmembers class com.metrolist.music.utils.sabr.EjsNTransformSolver$SolverWebView {
-    @android.webkit.JavascriptInterface public *;
-}
--keepclassmembers class com.metrolist.music.utils.cipher.CipherWebView {
-    @android.webkit.JavascriptInterface public *;
-}
--keepclassmembers class com.metrolist.music.utils.potoken.PoTokenWebView {
-    @android.webkit.JavascriptInterface public *;
-}
-
-# Keep streaming utility classes
--keep class com.metrolist.music.utils.cipher.** { *; }
--keep class com.metrolist.music.utils.sabr.** { *; }
--keep class com.metrolist.music.utils.potoken.** { *; }
-
-# Keep coroutine continuation for WebView callbacks
--keepclassmembers class * {
-    void resume(...);
-    void resumeWithException(...);
-}
-
 ## Kotlin Coroutines — Reproducible Build Rules
 # Keep volatile fields in coroutine classes to prevent AtomicFieldUpdater optimisation issues
 # and ensure R8 does not reorder or merge these across builds.
