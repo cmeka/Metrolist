@@ -14,6 +14,7 @@ import org.schabi.newpipe.extractor.downloader.Response
 import org.schabi.newpipe.extractor.exceptions.ParsingException
 import org.schabi.newpipe.extractor.exceptions.ReCaptchaException
 import org.schabi.newpipe.extractor.services.youtube.YoutubeJavaScriptPlayerManager
+import org.schabi.newpipe.extractor.stream.StreamInfo
 import java.io.IOException
 import java.net.Proxy
 
@@ -107,4 +108,21 @@ object NewPipeUtils {
             )
         }
 
+}
+
+object NewPipeExtractor {
+    fun newPipePlayer(videoId: String): List<Pair<Int, String>> {
+        return try {
+            val streamInfo = StreamInfo.getInfo(
+                NewPipe.getService(0),
+                "https://www.youtube.com/watch?v=$videoId"
+            )
+            val streamsList = streamInfo.audioStreams + streamInfo.videoStreams + streamInfo.videoOnlyStreams
+            streamsList.mapNotNull {
+                (it.itagItem?.id ?: return@mapNotNull null) to it.content
+            }
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
 }
