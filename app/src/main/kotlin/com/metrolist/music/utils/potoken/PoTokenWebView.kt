@@ -323,9 +323,21 @@ class PoTokenWebView private constructor(
     companion object {
         private const val TAG = "PoTokenWebView"
         private const val GOOGLE_API_KEY = "AIzaSyDyT5W0Jh49F30Pqqtyfdf7pDLFKLJoAnw"
+        
+        // Current known request keys - may need rotation
+        // Primary key (current)
         private const val REQUEST_KEY = "O43z0dpjhgX20SCx4KAo"
+        
+        // Alternative keys for fallback (if YouTube rotates keys)
+        private val REQUEST_KEYS = listOf(
+            "O43z0dpjhgX20SCx4KAo",
+            "kH1Q2QY2d8gD7vLm3p9Zs5Ewertyuiop", // Placeholder - add real keys when found
+            "aS8f3Gj2h9K5l7m1Q4w6E8r0t2Y7uI9p", // Placeholder
+            "zX9c4V6b8N0m2L5w7E9r1T3y6U8i0O4a"  // Placeholder
+        ).toMutableList()
+        
         private const val USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
-                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.3"
+                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
         private const val JS_INTERFACE = "PoTokenWebView"
 
         private val httpClient = OkHttpClient.Builder()

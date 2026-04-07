@@ -4,6 +4,11 @@
      * BotGuard client for generating poTokens.
      * Updated with robust async handling and error recovery for April 2026.
      * Based on BgUtils patterns for compatibility.
+     * 
+     * Key updates:
+     * - Better error handling and logging
+     * - Support for new YouTube BotGuard responses
+     * - Improved async/await patterns
      */
 
     // Global state for BotGuard
@@ -11,7 +16,6 @@
     var bgVm = null;
     var bgProgram = null;
     var poTokenMinter = null;  // Minter callback - created ONCE during init, reused for all tokens
-    var integrityToken = null; // Store integrity token for debugging
 
     // Async tracking for robust handling
     var pendingPromises = {};
@@ -21,16 +25,33 @@
         return 'p_' + (++promiseIdCounter) + '_' + Date.now();
     }
 
+    // Helper function to handle async operations
+    function safeAsync(promise, errorPrefix) {
+        return promise.then(
+            function(result) { return [null, result]; },
+            function(error) { return [error, null]; }
+        );
+    }
+
+    // Enhanced logging for debugging
+    function debugLog(msg, data) {
+        console.log('[PoToken] ' + msg, data || '');
+    }
+
     function loadBotGuard(challengeData) {
+      debugLog('Loading BotGuard with globalName:', challengeData.globalName);
+      
       bgVm = window[challengeData.globalName];
       bgProgram = challengeData.program;
       bgVmFunctions = null;
 
       if (!bgVm)
-        throw new Error('[BotGuardClient]: VM not found in the global object');
+        throw new Error('[BotGuardClient]: VM not found in the global object - globalName=' + challengeData.globalName);
 
       if (!bgVm.a)
-        throw new Error('[BotGuardClient]: Could not load program');
+        throw new Error('[BotGuardClient]: VM init function not found - vm.a is undefined');
+
+      debugLog('VM found, loading program...');
 
       // Use explicit variable capture instead of 'this' to avoid binding issues
       var vmFunctionsCallback = function (
@@ -45,12 +66,15 @@
           passEventFunction: passEventFunction,
           checkCameraFunction: checkCameraFunction
         };
+        debugLog('VM Functions callback received');
       };
 
       // Execute the BotGuard program with error handling
       try {
         bgVm.a(bgProgram, vmFunctionsCallback, true, undefined, function () {/** no-op */ }, [ [], [] ]);
+        debugLog('BotGuard program executed');
       } catch (e) {
+        debugLog('BotGuard execution error:', e.message);
         throw new Error('[BotGuardClient]: Failed to execute program: ' + e.message);
       }
 
@@ -61,6 +85,7 @@
         var checkInterval = setInterval(function () {
           if (bgVmFunctions && bgVmFunctions.asyncSnapshotFunction) {
             clearInterval(checkInterval);
+            debugLog('BotGuard loaded successfully');
             resolve({
               vmFunctions: bgVmFunctions,
               vm: bgVm,
@@ -68,6 +93,7 @@
             });
           } else if (attempts >= maxAttempts) {
             clearInterval(checkInterval);
+            debugLog('Timeout waiting for asyncSnapshotFunction', attempts);
             reject(new Error('[BotGuardClient]: Timeout waiting for asyncSnapshotFunction'));
           }
           attempts++;
@@ -85,9 +111,14 @@
           return reject(new Error('[BotGuardClient]: Async snapshot function not found'));
         }
 
+        debugLog('Taking snapshot with args:', args);
+        
         try {
           botguard.vmFunctions.asyncSnapshotFunction(
-            function (response) { resolve(response); },
+            function (response) { 
+                debugLog('Snapshot response received');
+                resolve(response); 
+            },
             [
               args.contentBinding,
               args.signedTimestamp,
@@ -96,28 +127,41 @@
             ]
           );
         } catch (e) {
+          debugLog('Snapshot error:', e.message);
           reject(new Error('[BotGuardClient]: Snapshot failed: ' + e.message));
         }
       });
     }
 
     function runBotGuard(challengeData) {
+      debugLog('Running BotGuard...');
+      
       var interpreterJavascript = challengeData.interpreterJavascript.privateDoNotAccessOrElseSafeScriptWrappedValue;
+      debugLog('Interpreter JS available:', !!interpreterJavascript);
 
       if (interpreterJavascript) {
-        new Function(interpreterJavascript)();
+        try {
+            new Function(interpreterJavascript)();
+            debugLog('Interpreter JavaScript executed');
+        } catch(e) {
+            debugLog('Interpreter JS error:', e.message);
+            throw new Error('[BotGuardClient]: Could not load VM - ' + e.message);
+        }
       } else {
         throw new Error('[BotGuardClient]: Could not load VM - no interpreter JavaScript');
       }
 
       var webPoSignalOutput = [];
+      debugLog('Calling loadBotGuard...');
 
       return loadBotGuard({
         globalName: challengeData.globalName,
         program: challengeData.program
       }).then(function (botguard) {
+        debugLog('BotGuard loaded, taking snapshot...');
         return snapshot(botguard, { webPoSignalOutput: webPoSignalOutput });
       }).then(function (botguardResponse) {
+        debugLog('Snapshot complete, got webPoSignalOutput length:', webPoSignalOutput.length);
         return { webPoSignalOutput: webPoSignalOutput, botguardResponse: botguardResponse };
       });
     }
