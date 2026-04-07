@@ -51,51 +51,28 @@ object FunctionNameExtractor {
     /**
      * Known player.js configurations indexed by hash
      *
-     * Player hash 74edf1a3 (March 2026):
+     * Player hash 57fefa84 (April 2026 - CURRENT):
      * - Signature: JI(48, 1918, f1(1, 6528, sig)) -> reverse, swap(0, 57%), reverse
      * - N-transform: GU(6, 6010, n) with 87-element self-referential array
      *
-     * Player hash patterns that may appear in 2026:
-     * - Various 8-character hex hashes
-     * - Functions may have different names but similar patterns
+     * Player hash 74edf1a3 (March 2026):
+     * - Same patterns as current, kept for backward compatibility
      */
     private val KNOWN_PLAYER_CONFIGS = mapOf(
-        // March 2026 - confirmed working
+        // Current April 2026 player - discovered 2026-04-07
+        "57fefa84" to HardcodedPlayerConfig(
+            sigFuncName = "JI",
+            sigConstantArg = 48,
+            sigConstantArgs = listOf(48, 1918),
+            sigPreprocessFunc = "f1",
+            sigPreprocessArgs = listOf(1, 6528),
+            nFuncName = "GU",
+            nArrayIndex = null,
+            nConstantArgs = listOf(6, 6010),
+            signatureTimestamp = 20522
+        ),
+        // March 2026 - still supported as fallback
         "74edf1a3" to HardcodedPlayerConfig(
-            sigFuncName = "JI",
-            sigConstantArg = 48,
-            sigConstantArgs = listOf(48, 1918),
-            sigPreprocessFunc = "f1",
-            sigPreprocessArgs = listOf(1, 6528),
-            nFuncName = "GU",
-            nArrayIndex = null,
-            nConstantArgs = listOf(6, 6010),
-            signatureTimestamp = 20522
-        ),
-        // April 2026 variants - try same config but different hashes
-        "a1b2c3d4" to HardcodedPlayerConfig(
-            sigFuncName = "JI",
-            sigConstantArg = 48,
-            sigConstantArgs = listOf(48, 1918),
-            sigPreprocessFunc = "f1",
-            sigPreprocessArgs = listOf(1, 6528),
-            nFuncName = "GU",
-            nArrayIndex = null,
-            nConstantArgs = listOf(6, 6010),
-            signatureTimestamp = 20522
-        ),
-        "b2c3d4e5" to HardcodedPlayerConfig(
-            sigFuncName = "JI",
-            sigConstantArg = 48,
-            sigConstantArgs = listOf(48, 1918),
-            sigPreprocessFunc = "f1",
-            sigPreprocessArgs = listOf(1, 6528),
-            nFuncName = "GU",
-            nArrayIndex = null,
-            nConstantArgs = listOf(6, 6010),
-            signatureTimestamp = 20522
-        ),
-        "c3d4e5f6" to HardcodedPlayerConfig(
             sigFuncName = "JI",
             sigConstantArg = 48,
             sigConstantArgs = listOf(48, 1918),
