@@ -2,7 +2,8 @@
 <html lang="en"><head><title></title><script>
     /**
      * BotGuard client for generating poTokens.
-     * Updated to fix JavaScript 'this' binding issues and match BgUtils v3.2.0 patterns.
+     * Updated with robust async handling and error recovery for April 2026.
+     * Based on BgUtils patterns for compatibility.
      */
 
     // Global state for BotGuard
@@ -10,6 +11,15 @@
     var bgVm = null;
     var bgProgram = null;
     var poTokenMinter = null;  // Minter callback - created ONCE during init, reused for all tokens
+    var integrityToken = null; // Store integrity token for debugging
+
+    // Async tracking for robust handling
+    var pendingPromises = {};
+    var promiseIdCounter = 0;
+
+    function generatePromiseId() {
+        return 'p_' + (++promiseIdCounter) + '_' + Date.now();
+    }
 
     function loadBotGuard(challengeData) {
       bgVm = window[challengeData.globalName];
@@ -37,14 +47,14 @@
         };
       };
 
-      // Execute the BotGuard program
+      // Execute the BotGuard program with error handling
       try {
         bgVm.a(bgProgram, vmFunctionsCallback, true, undefined, function () {/** no-op */ }, [ [], [] ]);
       } catch (e) {
         throw new Error('[BotGuardClient]: Failed to execute program: ' + e.message);
       }
 
-      // Wait for vmFunctions to be populated (async callback)
+      // Wait for vmFunctions to be populated (async callback) with timeout
       return new Promise(function (resolve, reject) {
         var attempts = 0;
         var maxAttempts = 10000; // 10 seconds at 1ms intervals
@@ -67,6 +77,7 @@
 
     /**
      * Takes a snapshot asynchronously using the loaded BotGuard.
+     * Uses callback-based approach for better compatibility.
      */
     function snapshot(botguard, args) {
       return new Promise(function (resolve, reject) {

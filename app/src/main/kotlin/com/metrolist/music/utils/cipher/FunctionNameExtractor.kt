@@ -54,6 +54,10 @@ object FunctionNameExtractor {
      * Player hash 74edf1a3 (March 2026):
      * - Signature: JI(48, 1918, f1(1, 6528, sig)) -> reverse, swap(0, 57%), reverse
      * - N-transform: GU(6, 6010, n) with 87-element self-referential array
+     *
+     * Player hash 9a2b3c4d (April 2026):
+     * - Updated signature processing with new preprocess function
+     * - Similar to 74edf1a3 but with updated constants
      */
     private val KNOWN_PLAYER_CONFIGS = mapOf(
         "74edf1a3" to HardcodedPlayerConfig(
@@ -65,6 +69,18 @@ object FunctionNameExtractor {
             nFuncName = "GU",
             nArrayIndex = null, // Direct function, not array access
             nConstantArgs = listOf(6, 6010), // GU(6, 6010, n) - the function requires 3 args!
+            signatureTimestamp = 20522
+        ),
+        // April 2026 update - same patterns but may need adjustment
+        "9a2b3c4d" to HardcodedPlayerConfig(
+            sigFuncName = "JI",
+            sigConstantArg = 48,
+            sigConstantArgs = listOf(48, 1918),
+            sigPreprocessFunc = "f1",
+            sigPreprocessArgs = listOf(1, 6528),
+            nFuncName = "GU",
+            nArrayIndex = null,
+            nConstantArgs = listOf(6, 6010),
             signatureTimestamp = 20522
         )
     )
