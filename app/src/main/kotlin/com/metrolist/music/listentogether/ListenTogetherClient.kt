@@ -20,6 +20,9 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.getSystemService
 import androidx.datastore.preferences.core.edit
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.ProcessLifecycleOwner
 import com.metrolist.music.R
 import com.metrolist.music.constants.ListenTogetherAutoApprovalKey
 import com.metrolist.music.constants.ListenTogetherAutoApproveSuggestionsKey
@@ -228,6 +231,7 @@ class ListenTogetherClient
             private const val PING_INTERVAL_MS = 25000L
             private const val MAX_LOG_ENTRIES = 500
             private const val SESSION_GRACE_PERIOD_MS = 10 * 60 * 1000L // 10 minutes
+            private const val BACKGROUND_DISCONNECT_DELAY_MS = 30 * 60 * 1000L // 30 minutes
 
             // Notification constants
             private const val NOTIFICATION_CHANNEL_ID = "listen_together_channel"
@@ -289,11 +293,67 @@ class ListenTogetherClient
         init {
             setInstance(this)
             ensureNotificationChannel()
+            observeAppLifecycle()
             // Load persisted session info asynchronously after construction to avoid calling log() before flows are initialized
             CoroutineScope(Dispatchers.IO + SupervisorJob()).launch {
                 loadPersistedSession()
                 observeNetworkChanges()
             }
+        }
+
+        private fun observeAppLifecycle() {
+            ProcessLifecycleOwner.get().lifecycle.addObserver(
+                object : DefaultLifecycleObserver {
+                    override fun onStart(owner: LifecycleOwner) {
+                        evaluateBackgroundDisconnectPolicy("app_foreground")
+                    }
+
+                    override fun onStop(owner: LifecycleOwner) {
+                        evaluateBackgroundDisconnectPolicy("app_background")
+                    }
+                },
+            )
+        }
+
+        private fun shouldDisconnectForBackgroundIdle(): Boolean {
+            val connectedOrConnecting =
+                _connectionState.value == ConnectionState.CONNECTED ||
+                    _connectionState.value == ConnectionState.CONNECTING ||
+                    _connectionState.value == ConnectionState.RECONNECTING
+
+            return !ProcessLifecycleOwner.get().lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED) &&
+                _roomState.value == null &&
+                pendingAction == null &&
+                connectedOrConnecting
+        }
+
+        private fun evaluateBackgroundDisconnectPolicy(source: String) {
+            if (!shouldDisconnectForBackgroundIdle()) {
+                if (backgroundDisconnectJob?.isActive == true) {
+                    log(LogLevel.DEBUG, "Cancelled background idle disconnect", source)
+                }
+                backgroundDisconnectJob?.cancel()
+                backgroundDisconnectJob = null
+                return
+            }
+
+            if (backgroundDisconnectJob?.isActive == true) return
+
+            log(
+                LogLevel.INFO,
+                "Scheduling background idle disconnect",
+                "Disconnecting in ${BACKGROUND_DISCONNECT_DELAY_MS / 60000} minutes ($source)",
+            )
+
+            backgroundDisconnectJob =
+                scope.launch {
+                    delay(BACKGROUND_DISCONNECT_DELAY_MS)
+                    if (shouldDisconnectForBackgroundIdle()) {
+                        log(LogLevel.INFO, "Background idle timeout reached", "Disconnecting to save battery")
+                        backgroundDisconnectJob = null
+                        disconnect()
+                    }
+                }
         }
 
         /**
@@ -471,6 +531,7 @@ class ListenTogetherClient
         private var webSocket: WebSocket? = null
         private var pingJob: Job? = null
         private var reconnectAttempts = 0
+        private var backgroundDisconnectJob: Job? = null
 
         // Session info for reconnection
         private var sessionToken: String? = null
@@ -563,6 +624,7 @@ class ListenTogetherClient
             }
 
             _connectionState.value = ConnectionState.CONNECTING
+            evaluateBackgroundDisconnectPolicy("connect")
             log(LogLevel.INFO, "Connecting to server", getServerUrl())
 
             val request =
@@ -583,6 +645,7 @@ class ListenTogetherClient
                             _connectionState.value = ConnectionState.CONNECTED
                             reconnectAttempts = 0
                             startPingJob()
+                            evaluateBackgroundDisconnectPolicy("socket_open")
 
                             // Try to reconnect to previous session if we have a valid token
                             if (sessionToken != null && storedRoomCode != null) {
@@ -635,6 +698,7 @@ class ListenTogetherClient
         private fun executePendingAction() {
             val action = pendingAction ?: return
             pendingAction = null
+            evaluateBackgroundDisconnectPolicy("pending_action_started")
 
             when (action) {
                 is PendingAction.CreateRoom -> {
@@ -654,6 +718,8 @@ class ListenTogetherClient
          */
         fun disconnect() {
             log(LogLevel.INFO, "Disconnecting from server")
+            backgroundDisconnectJob?.cancel()
+            backgroundDisconnectJob = null
             releaseWakeLock() // Release wake lock when disconnecting
             pingJob?.cancel()
             pingJob = null
@@ -867,6 +933,7 @@ class ListenTogetherClient
             } else {
                 scope.launch { _events.emit(ListenTogetherEvent.Disconnected) }
             }
+            evaluateBackgroundDisconnectPolicy("socket_disconnected")
         }
 
         private fun handleConnectionFailure(t: Throwable) {
@@ -879,6 +946,7 @@ class ListenTogetherClient
             if (!isNetworkAvailable) {
                 log(LogLevel.WARNING, "Connection failure, waiting for network", t.message)
                 _connectionState.value = ConnectionState.DISCONNECTED
+                evaluateBackgroundDisconnectPolicy("connection_failure_no_network")
                 return
             }
 
@@ -905,6 +973,7 @@ class ListenTogetherClient
                         connect()
                     }
                 }
+                evaluateBackgroundDisconnectPolicy("connection_failure_retrying")
             } else {
                 _connectionState.value = ConnectionState.ERROR
 
@@ -935,6 +1004,7 @@ class ListenTogetherClient
                         _events.emit(ListenTogetherEvent.ConnectionError(t.message ?: "Unknown error"))
                     }
                 }
+                evaluateBackgroundDisconnectPolicy("connection_failure_exhausted")
             }
         }
 
@@ -968,6 +1038,7 @@ class ListenTogetherClient
 
                         // Save session to persistent storage
                         savePersistedSession()
+                        evaluateBackgroundDisconnectPolicy("room_created")
 
                         acquireWakeLock() // Keep connection alive while in room
                         log(LogLevel.INFO, "Room created", "Code: ${payload.roomCode}")
@@ -1030,6 +1101,7 @@ class ListenTogetherClient
 
                         // Save session to persistent storage
                         savePersistedSession()
+                        evaluateBackgroundDisconnectPolicy("join_approved")
 
                         acquireWakeLock() // Keep connection alive while in room
                         log(LogLevel.INFO, "Joined room", "Code: ${payload.roomCode}")
@@ -1096,6 +1168,7 @@ class ListenTogetherClient
                         sessionToken = null
                         _roomState.value = null
                         _role.value = RoomRole.NONE
+                        evaluateBackgroundDisconnectPolicy("kicked")
                         scope.launch { _events.emit(ListenTogetherEvent.Kicked(payload.reason)) }
                     }
 
@@ -1304,6 +1377,7 @@ class ListenTogetherClient
                         wasHost = payload.isHost
                         sessionStartTime = System.currentTimeMillis()
                         savePersistedSession()
+                        evaluateBackgroundDisconnectPolicy("reconnected")
 
                         // Reset reconnection attempts on successful reconnection
                         reconnectAttempts = 0
@@ -1399,6 +1473,7 @@ class ListenTogetherClient
             } else {
                 log(LogLevel.INFO, "Not connected, queueing create room action")
                 pendingAction = PendingAction.CreateRoom(username)
+                evaluateBackgroundDisconnectPolicy("create_room_queued")
                 if (_connectionState.value == ConnectionState.DISCONNECTED ||
                     _connectionState.value == ConnectionState.ERROR
                 ) {
@@ -1429,6 +1504,7 @@ class ListenTogetherClient
             } else {
                 log(LogLevel.INFO, "Not connected, queueing join room action")
                 pendingAction = PendingAction.JoinRoom(roomCode, username)
+                evaluateBackgroundDisconnectPolicy("join_room_queued")
                 if (_connectionState.value == ConnectionState.DISCONNECTED ||
                     _connectionState.value == ConnectionState.ERROR
                 ) {
@@ -1459,6 +1535,7 @@ class ListenTogetherClient
             clearPersistedSession()
 
             releaseWakeLock()
+            evaluateBackgroundDisconnectPolicy("leave_room")
         }
 
         /**
@@ -1549,7 +1626,12 @@ class ListenTogetherClient
          * Signal that buffering is complete for the current track
          */
         fun sendBufferReady(trackId: String) {
-            sendMessage(MessageTypes.BUFFER_READY, BufferReadyPayload(trackId))
+            val sanitizedTrackId = trackId.trim()
+            if (sanitizedTrackId.isEmpty()) {
+                log(LogLevel.WARNING, "Skipping buffer ready", "Track ID is blank")
+                return
+            }
+            sendMessage(MessageTypes.BUFFER_READY, BufferReadyPayload(sanitizedTrackId))
         }
 
         /**
@@ -1694,6 +1776,7 @@ class ListenTogetherClient
             }
 
             _connectionState.value = ConnectionState.DISCONNECTED
+            evaluateBackgroundDisconnectPolicy("force_reconnect")
 
             // Attempt connection with reset backoff
             scope.launch {
