@@ -1330,6 +1330,12 @@ class ListenTogetherClient
                         // Handle specific error cases
                         when (payload.code) {
                             "session_not_found" -> {
+                                // Clear stale room state immediately - server no longer recognizes the session
+                                _roomState.value = null
+                                _role.value = RoomRole.NONE
+                                _pendingJoinRequests.value = emptyList()
+                                _bufferingUsers.value = emptyList()
+
                                 // Session expired on server, try to rejoin the room
                                 if (storedRoomCode != null && storedUsername != null && !wasHost) {
                                     log(

@@ -1233,7 +1233,7 @@ class ListenTogetherManager
                     if (queue != null && queue.isNotEmpty()) {
                         val mediaItems = queue.map { it.toMediaMetadata().toMediaItem() }
                         player.setMediaItems(mediaItems)
-                    } else if (queue != null) {
+                    } else {
                         player.clearMediaItems()
                     }
                     connection.pause()
