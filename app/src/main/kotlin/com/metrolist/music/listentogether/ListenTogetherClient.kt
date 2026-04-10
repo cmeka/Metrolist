@@ -57,6 +57,7 @@ import timber.log.Timber
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -393,6 +394,7 @@ class ListenTogetherClient
          * Load persisted session information from storage
          */
         private fun loadPersistedSession() {
+            val generationAtLoadStart = sessionApplyGeneration.get()
             try {
                 val token = context.dataStore.get(ListenTogetherSessionTokenKey, "")
                 val roomCode = context.dataStore.get(ListenTogetherRoomCodeKey, "")
@@ -404,6 +406,14 @@ class ListenTogetherClient
                 if (token.isNotEmpty() && roomCode.isNotEmpty() &&
                     (System.currentTimeMillis() - timestamp < SESSION_GRACE_PERIOD_MS)
                 ) {
+                    if (generationAtLoadStart != sessionApplyGeneration.get()) {
+                        log(
+                            LogLevel.INFO,
+                            "Skipping persisted session restore",
+                            "User started a new room flow before restore completed",
+                        )
+                        return
+                    }
                     sessionToken = token
                     storedRoomCode = roomCode
                     _userId.value = userId.ifEmpty { null }
@@ -411,6 +421,9 @@ class ListenTogetherClient
                     sessionStartTime = timestamp
                     log(LogLevel.INFO, "Loaded persisted session", "Room: $roomCode, Host: $isHost")
                 } else if (token.isNotEmpty()) {
+                    if (generationAtLoadStart != sessionApplyGeneration.get()) {
+                        return
+                    }
                     log(LogLevel.WARNING, "Session expired", "Age: ${System.currentTimeMillis() - timestamp}ms")
                     clearPersistedSession()
                 }
@@ -542,6 +555,13 @@ class ListenTogetherClient
 
         // Pending actions to execute when connected
         private var pendingAction: PendingAction? = null
+
+        /**
+         * Incremented when the user explicitly starts create/join so a late-finishing
+         * [loadPersistedSession] cannot restore disk state over that intent (would make
+         * [onOpen] choose RECONNECT instead of [executePendingAction]).
+         */
+        private val sessionApplyGeneration = AtomicInteger(0)
 
         // Wake lock to keep connection alive when in a room
         private var wakeLock: PowerManager.WakeLock? = null
@@ -1466,6 +1486,7 @@ class ListenTogetherClient
          * If not connected, will queue the action and connect first.
          */
         fun createRoom(username: String) {
+            sessionApplyGeneration.incrementAndGet()
             // Clear any existing session to ensure we create a new room instead of reconnecting
             clearPersistedSession()
             sessionToken = null
@@ -1497,6 +1518,7 @@ class ListenTogetherClient
             roomCode: String,
             username: String,
         ) {
+            sessionApplyGeneration.incrementAndGet()
             // Clear any existing session to ensure we join the new room instead of reconnecting
             clearPersistedSession()
             sessionToken = null
