@@ -1796,7 +1796,7 @@ class MusicService :
 
             val targetPlaylist = database.playlist(targetPlaylistId).first()
             if (targetPlaylist != null) {
-                database.addSongsToPlaylist(targetPlaylist, listOf(currentSong.id to null))
+                database.addSongsToPlaylist(targetPlaylist, listOf(currentSong.id to null), prepend = true)
             }
         }
     }

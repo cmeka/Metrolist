@@ -109,6 +109,7 @@ import com.metrolist.music.constants.TranslateModeKey
 import com.metrolist.music.db.entities.LyricsEntity.Companion.LYRICS_NOT_FOUND
 import com.metrolist.music.lyrics.LyricsTranslationHelper
 import com.metrolist.music.lyrics.LyricsUtils.findActiveLineIndices
+import com.metrolist.music.lyrics.lyricsTextLooksSynced
 import com.metrolist.music.ui.component.shimmer.ShimmerHost
 import com.metrolist.music.ui.component.shimmer.TextPlaceholder
 import com.metrolist.music.ui.screens.settings.LyricsPosition
@@ -222,7 +223,7 @@ fun ExperimentalLyrics(
         lyricsViewModel.processLyrics(lyrics, enabledLanguages, romanizeCyrillicByLine, showIntervalIndicator)
     }
 
-    val isSynced = remember(lyrics) { !lyrics.isNullOrEmpty() && lyrics.startsWith("[") }
+    val isSynced = remember(lyrics) { lyricsTextLooksSynced(lyrics) }
     val hasWordTimings = remember(lines) { lines.any { it.words?.isNotEmpty() == true } }
 
     DisposableEffect(Unit) {
@@ -709,7 +710,10 @@ fun ExperimentalLyrics(
                         ) {
                             when (listItem) {
                                 is LyricsListItem.Indicator -> {
-                                    val visible = currentPositionState >= listItem.gapStartMs && currentPositionState <= listItem.gapEndMs - 650L
+                                    val visible =
+                                        isAutoScrollEnabled &&
+                                            currentPositionState >= listItem.gapStartMs &&
+                                            currentPositionState <= listItem.gapEndMs - 650L
                                     IntervalIndicator(listItem.gapStartMs, listItem.gapEndMs - 650L, currentPositionState, visible, expressiveAccent, 
                                         Modifier.fillMaxWidth().onSizeChanged { itemHeights[listIndex] = it.height }.padding(horizontal = 24.dp).wrapContentWidth(Alignment.CenterHorizontally))
                                 }
