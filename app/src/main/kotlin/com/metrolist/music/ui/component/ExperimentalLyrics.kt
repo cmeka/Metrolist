@@ -550,10 +550,17 @@ fun ExperimentalLyrics(
             maxHeightPx - with(density) { 150.dp.toPx() } - anchorY + totalAbove
         }
 
-        // Add a generous buffer to safe constraints to prevent "locks" due to unmeasured items
-        val constraintBuffer = with(density) { 1000.dp.toPx() }
-        val safeMinOffset = minOf(minOffset, maxOffset - maxHeightPx) - constraintBuffer
-        val safeMaxOffset = maxOf(maxOffset, 0f) + constraintBuffer
+        // Clamp to real content bounds only. minOffset/maxOffset already use conservative height
+        // fallbacks (constraintLineHeightPx) for items not yet measured; a large buffer here caused
+        // effectively unbounded overscroll away from the lyrics.
+        val scrollClampMin = minOf(minOffset, maxOffset)
+        val scrollClampMax = maxOf(minOffset, maxOffset)
+
+        LaunchedEffect(scrollClampMin, scrollClampMax) {
+            if (userManualOffset < scrollClampMin || userManualOffset > scrollClampMax) {
+                userManualOffset = userManualOffset.coerceIn(scrollClampMin, scrollClampMax)
+            }
+        }
 
         LaunchedEffect(isAutoScrollEnabled, lines) {
             if (isAutoScrollEnabled) {
@@ -649,14 +656,14 @@ fun ExperimentalLyrics(
                                 lastPreviewTime = System.currentTimeMillis()
                                 velocityTracker.addPosition(down.uptimeMillis, down.position)
                                 verticalDrag(down.id) { change ->
-                                    userManualOffset = (userManualOffset + change.positionChange().y).coerceIn(safeMinOffset, safeMaxOffset)
+                                    userManualOffset = (userManualOffset + change.positionChange().y).coerceIn(scrollClampMin, scrollClampMax)
                                     velocityTracker.addPosition(change.uptimeMillis, change.position)
                                     change.consume()
                                 }
                                 val velocity = velocityTracker.calculateVelocity().y
                                 flingJob = scope.launch {
                                     AnimationState(initialValue = userManualOffset, initialVelocity = velocity).animateDecay(decayAnimSpec) {
-                                        val clamped = value.coerceIn(safeMinOffset, safeMaxOffset)
+                                        val clamped = value.coerceIn(scrollClampMin, scrollClampMax)
                                         userManualOffset = clamped
                                         if (value != clamped) cancelAnimation()
                                     }
